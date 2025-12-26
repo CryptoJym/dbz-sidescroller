@@ -1,0 +1,29 @@
+# API keys and secrets - Python scripts with API keys
+test_*.py
+generate_*.py
+.env
+*.key
+
+# Test screenshots
+*_test*.png
+gameplay*.png
+game_screenshot*.png
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Node modules (if any)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+venv/
