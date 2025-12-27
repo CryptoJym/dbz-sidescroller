@@ -519,13 +519,14 @@ class Sprites {
         ctx.ellipse(x + w/2, y + h + 3, w/2, 8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Try AI-generated sprites (with magenta removed)
+        // Try AI-generated sprites (extract single frame from sprite sheet)
         if (typeof spriteLoader !== 'undefined' && spriteLoader.loaded) {
             const spriteName = spriteLoader.getCharacterSpriteName(char.name, ssj);
             const sprite = spriteLoader.getSprite(spriteName);
             if (sprite && sprite.image) {
-                // Draw the processed sprite (canvas with transparency)
-                ctx.drawImage(sprite.image, x, y, w, h);
+                // Get frame index based on pose and animation
+                const frameIndex = spriteLoader.getFrameForPose(pose, frame);
+                spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h);
                 ctx.restore();
                 return;
             }
@@ -685,12 +686,13 @@ class Sprites {
         ctx.save();
         if (!right) { ctx.translate(x + w, y); ctx.scale(-1, 1); x = 0; y = 0; }
 
-        // Try AI-generated sprites (with magenta removed)
+        // Try AI-generated sprites (extract single frame)
         if (typeof spriteLoader !== 'undefined' && spriteLoader.loaded) {
             const spriteName = spriteLoader.getEnemySpriteName(type);
             const sprite = spriteLoader.getSprite(spriteName);
             if (sprite && sprite.image) {
-                ctx.drawImage(sprite.image, x, y, w, h);
+                const frameIndex = Math.floor(frame / 10) % sprite.cols;
+                spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h);
                 ctx.restore();
                 return;
             }
@@ -734,12 +736,13 @@ class Sprites {
         ctx.save();
         if (!right) { ctx.translate(x + w, y); ctx.scale(-1, 1); x = 0; y = 0; }
 
-        // Try AI-generated sprites (with magenta removed)
+        // Try AI-generated sprites (extract single frame)
         if (typeof spriteLoader !== 'undefined' && spriteLoader.loaded) {
             const spriteName = spriteLoader.getBossSpriteName(type);
             const sprite = spriteLoader.getSprite(spriteName);
             if (sprite && sprite.image) {
-                ctx.drawImage(sprite.image, x, y, w, h);
+                const frameIndex = Math.floor(frame / 15) % sprite.cols;
+                spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h);
                 ctx.restore();
                 return;
             }

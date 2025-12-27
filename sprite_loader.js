@@ -1,5 +1,5 @@
 // ============================================================================
-// SPRITE LOADER - Loads AI-generated sprites into the game
+// SPRITE LOADER - Loads AI-generated sprite sheets into the game
 // ============================================================================
 
 class SpriteLoader {
@@ -12,24 +12,24 @@ class SpriteLoader {
 
     async loadAll() {
         const spriteList = {
-            // Characters
-            'goku_base': { path: 'sprites/goku_base.png' },
-            'goku_ssj': { path: 'sprites/goku_ssj.png' },
-            'vegeta_base': { path: 'sprites/vegeta_base.png' },
-            'vegeta_ssj': { path: 'sprites/vegeta_ssj.png' },
-            'piccolo': { path: 'sprites/piccolo.png' },
-            'gohan_ssj2': { path: 'sprites/gohan_ssj2.png' },
-            'trunks': { path: 'sprites/trunks.png' },
+            // Characters - frame size estimated from sprite sheets
+            'goku_base': { path: 'sprites/goku_base.png', cols: 8, rows: 3 },
+            'goku_ssj': { path: 'sprites/goku_ssj.png', cols: 8, rows: 3 },
+            'vegeta_base': { path: 'sprites/vegeta_base.png', cols: 8, rows: 3 },
+            'vegeta_ssj': { path: 'sprites/vegeta_ssj.png', cols: 8, rows: 2 },
+            'piccolo': { path: 'sprites/piccolo.png', cols: 8, rows: 3 },
+            'gohan_ssj2': { path: 'sprites/gohan_ssj2.png', cols: 8, rows: 2 },
+            'trunks': { path: 'sprites/trunks.png', cols: 8, rows: 3 },
 
             // Enemies
-            'frieza_soldier': { path: 'sprites/frieza_soldier.png' },
-            'saibaman': { path: 'sprites/saibaman.png' },
-            'cell_jr': { path: 'sprites/cell_jr.png' },
+            'frieza_soldier': { path: 'sprites/frieza_soldier.png', cols: 6, rows: 3 },
+            'saibaman': { path: 'sprites/saibaman.png', cols: 6, rows: 3 },
+            'cell_jr': { path: 'sprites/cell_jr.png', cols: 6, rows: 4 },
 
             // Bosses
-            'frieza_boss': { path: 'sprites/frieza_boss.png' },
-            'cell_boss': { path: 'sprites/cell_boss.png' },
-            'buu_boss': { path: 'sprites/buu_boss.png' }
+            'frieza_boss': { path: 'sprites/frieza_boss.png', cols: 6, rows: 4 },
+            'cell_boss': { path: 'sprites/cell_boss.png', cols: 6, rows: 4 },
+            'buu_boss': { path: 'sprites/buu_boss.png', cols: 6, rows: 3 }
         };
 
         this.totalSprites = Object.keys(spriteList).length;
@@ -41,7 +41,7 @@ class SpriteLoader {
 
         await Promise.all(promises);
         this.loaded = true;
-        console.log(`✅ Loaded ${this.loadCount}/${this.totalSprites} sprites with background removal`);
+        console.log(`✅ Loaded ${this.loadCount}/${this.totalSprites} sprite sheets`);
         return this.loaded;
     }
 
@@ -50,14 +50,24 @@ class SpriteLoader {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => {
-                // Process image to remove background
-                const processedImage = this.removeBackground(img);
+                // Calculate frame dimensions
+                const frameWidth = Math.floor(img.width / config.cols);
+                const frameHeight = Math.floor(img.height / config.rows);
+
+                // Process to remove magenta background
+                const processedCanvas = this.removeBackground(img);
+
                 this.sprites[name] = {
-                    image: processedImage,
-                    originalImage: img
+                    image: processedCanvas,
+                    originalImage: img,
+                    frameWidth: frameWidth,
+                    frameHeight: frameHeight,
+                    cols: config.cols,
+                    rows: config.rows,
+                    totalFrames: config.cols * config.rows
                 };
                 this.loadCount++;
-                console.log(`  Loaded: ${name}`);
+                console.log(`  Loaded: ${name} (${frameWidth}x${frameHeight} frames, ${config.cols}x${config.rows} grid)`);
                 resolve(true);
             };
             img.onerror = () => {
@@ -68,109 +78,65 @@ class SpriteLoader {
         });
     }
 
-    // Smart background removal - detects corner colors and removes them
+    // Remove magenta background
     removeBackground(img) {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
-
-        // Draw original image
         ctx.drawImage(img, 0, 0);
 
-        // Get image data
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
-        const w = canvas.width;
-        const h = canvas.height;
 
-        // Sample corners to find background color
-        const corners = [
-            this.getPixel(data, 0, 0, w),           // top-left
-            this.getPixel(data, w-1, 0, w),         // top-right
-            this.getPixel(data, 0, h-1, w),         // bottom-left
-            this.getPixel(data, w-1, h-1, w),       // bottom-right
-            this.getPixel(data, 5, 5, w),           // near top-left
-            this.getPixel(data, w-6, 5, w),         // near top-right
-        ];
-
-        // Find most common corner color (likely background)
-        const bgColor = this.findMostCommon(corners);
-
-        // Process each pixel
-        const tolerance = 50; // Color tolerance for background removal
         for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
 
-            // Check if pixel matches background color (with tolerance)
-            if (this.colorDistance(r, g, b, bgColor.r, bgColor.g, bgColor.b) < tolerance) {
-                data[i + 3] = 0; // Make transparent
-            }
-            // Also remove pure magenta
-            else if (r > 200 && g < 80 && b > 200) {
-                data[i + 3] = 0;
-            }
-            // Remove near-white
-            else if (r > 245 && g > 245 && b > 245) {
+            // Remove magenta (R:255, G:0, B:255) with tolerance
+            if (r > 200 && g < 100 && b > 200) {
                 data[i + 3] = 0;
             }
         }
 
-        // Put processed data back
         ctx.putImageData(imageData, 0, 0);
         return canvas;
     }
 
-    getPixel(data, x, y, width) {
-        const i = (y * width + x) * 4;
-        return { r: data[i], g: data[i+1], b: data[i+2] };
+    // Draw a specific frame from the sprite sheet
+    drawFrame(ctx, name, frameIndex, x, y, width, height) {
+        const sprite = this.sprites[name];
+        if (!sprite) return false;
+
+        // Calculate source position in sprite sheet
+        const col = frameIndex % sprite.cols;
+        const row = Math.floor(frameIndex / sprite.cols) % sprite.rows;
+        const srcX = col * sprite.frameWidth;
+        const srcY = row * sprite.frameHeight;
+
+        ctx.drawImage(
+            sprite.image,
+            srcX, srcY, sprite.frameWidth, sprite.frameHeight,
+            x, y, width, height
+        );
+        return true;
     }
 
-    colorDistance(r1, g1, b1, r2, g2, b2) {
-        return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
-    }
-
-    findMostCommon(colors) {
-        // Group similar colors and find most common
-        const groups = [];
-        for (const c of colors) {
-            let found = false;
-            for (const g of groups) {
-                if (this.colorDistance(c.r, c.g, c.b, g.color.r, g.color.g, g.color.b) < 30) {
-                    g.count++;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                groups.push({ color: c, count: 1 });
-            }
-        }
-        groups.sort((a, b) => b.count - a.count);
-        return groups[0]?.color || { r: 255, g: 0, b: 255 };
-    }
-
-    // Get a sprite for drawing
     getSprite(name) {
         return this.sprites[name] || null;
     }
 
-    // Get character sprite name based on character and SSJ state
     getCharacterSpriteName(character, ssj = false) {
         const charLower = character.toLowerCase();
-
         if (charLower === 'goku') return ssj ? 'goku_ssj' : 'goku_base';
         if (charLower === 'vegeta') return ssj ? 'vegeta_ssj' : 'vegeta_base';
         if (charLower === 'piccolo') return 'piccolo';
         if (charLower === 'gohan') return 'gohan_ssj2';
         if (charLower === 'trunks') return 'trunks';
-
         return 'goku_base';
     }
 
-    // Get enemy sprite name
     getEnemySpriteName(enemyType) {
         const typeMap = {
             'soldier': 'frieza_soldier',
@@ -181,7 +147,6 @@ class SpriteLoader {
         return typeMap[enemyType.toLowerCase()] || 'frieza_soldier';
     }
 
-    // Get boss sprite name
     getBossSpriteName(bossType) {
         const typeMap = {
             'frieza': 'frieza_boss',
@@ -190,9 +155,29 @@ class SpriteLoader {
         };
         return typeMap[bossType.toLowerCase()] || 'frieza_boss';
     }
+
+    // Map pose to frame index
+    getFrameForPose(pose, animFrame) {
+        // Frame layout assumption:
+        // Row 0: idle variations
+        // Row 1: walk/run cycle
+        // Row 2: actions (jump, attack, hurt)
+        const frameMap = {
+            'idle': 0,
+            'run': 8 + (animFrame % 4),      // Row 1, animated
+            'walk': 8 + (animFrame % 4),
+            'jump': 16,                       // Row 2
+            'attack': 17,
+            'punch': 17,
+            'kick': 18,
+            'charge': 19,
+            'special': 20,
+            'hurt': 21,
+            'damaged': 21
+        };
+        return frameMap[pose] || 0;
+    }
 }
 
-// Global sprite loader instance
 const spriteLoader = new SpriteLoader();
-
 console.log('Sprite Loader ready - call spriteLoader.loadAll() to load sprites');
