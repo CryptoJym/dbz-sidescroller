@@ -1,5 +1,5 @@
 // ============================================================================
-// SPRITE LOADER - Loads AI-generated sprite sheets into the game
+// SPRITE LOADER - AI sprite sheets for UI/portraits, programmatic for gameplay
 // ============================================================================
 
 class SpriteLoader {
@@ -8,28 +8,30 @@ class SpriteLoader {
         this.loaded = false;
         this.loadCount = 0;
         this.totalSprites = 0;
+        this.minDisplaySize = 100;  // Only use AI sprites when drawing larger than this
     }
 
     async loadAll() {
+        // Sprite sheet configurations: cols x rows grid layout
         const spriteList = {
-            // Characters - frame size estimated from sprite sheets
-            'goku_base': { path: 'sprites/goku_base.png', cols: 8, rows: 3 },
-            'goku_ssj': { path: 'sprites/goku_ssj.png', cols: 8, rows: 3 },
-            'vegeta_base': { path: 'sprites/vegeta_base.png', cols: 8, rows: 3 },
-            'vegeta_ssj': { path: 'sprites/vegeta_ssj.png', cols: 8, rows: 2 },
-            'piccolo': { path: 'sprites/piccolo.png', cols: 8, rows: 3 },
-            'gohan_ssj2': { path: 'sprites/gohan_ssj2.png', cols: 8, rows: 2 },
-            'trunks': { path: 'sprites/trunks.png', cols: 8, rows: 3 },
+            // Characters - sprite sheets with multiple poses
+            'goku_base': { path: 'sprites/goku_base.png', cols: 8, rows: 2 },
+            'goku_ssj': { path: 'sprites/goku_ssj.png', cols: 8, rows: 2 },
+            'vegeta_base': { path: 'sprites/vegeta_base.png', cols: 6, rows: 3 },
+            'vegeta_ssj': { path: 'sprites/vegeta_ssj.png', cols: 6, rows: 3 },
+            'piccolo': { path: 'sprites/piccolo.png', cols: 6, rows: 3 },
+            'gohan_ssj2': { path: 'sprites/gohan_ssj2.png', cols: 6, rows: 3 },
+            'trunks': { path: 'sprites/trunks.png', cols: 6, rows: 3 },
 
-            // Enemies
-            'frieza_soldier': { path: 'sprites/frieza_soldier.png', cols: 6, rows: 3 },
-            'saibaman': { path: 'sprites/saibaman.png', cols: 6, rows: 3 },
-            'cell_jr': { path: 'sprites/cell_jr.png', cols: 6, rows: 4 },
+            // Enemies - smaller sheets
+            'frieza_soldier': { path: 'sprites/frieza_soldier.png', cols: 4, rows: 2 },
+            'saibaman': { path: 'sprites/saibaman.png', cols: 4, rows: 2 },
+            'cell_jr': { path: 'sprites/cell_jr.png', cols: 4, rows: 2 },
 
-            // Bosses
-            'frieza_boss': { path: 'sprites/frieza_boss.png', cols: 6, rows: 4 },
-            'cell_boss': { path: 'sprites/cell_boss.png', cols: 6, rows: 4 },
-            'buu_boss': { path: 'sprites/buu_boss.png', cols: 6, rows: 3 }
+            // Bosses - larger single or sparse layouts
+            'frieza_boss': { path: 'sprites/frieza_boss.png', cols: 2, rows: 3 },
+            'cell_boss': { path: 'sprites/cell_boss.png', cols: 2, rows: 3 },
+            'buu_boss': { path: 'sprites/buu_boss.png', cols: 2, rows: 3 }
         };
 
         this.totalSprites = Object.keys(spriteList).length;
@@ -41,7 +43,7 @@ class SpriteLoader {
 
         await Promise.all(promises);
         this.loaded = true;
-        console.log(`✅ Loaded ${this.loadCount}/${this.totalSprites} sprite sheets`);
+        console.log(`✅ Loaded ${this.loadCount}/${this.totalSprites} AI sprite sheets`);
         return this.loaded;
     }
 
@@ -50,24 +52,26 @@ class SpriteLoader {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => {
-                // Calculate frame dimensions
+                // Calculate frame dimensions from grid
                 const frameWidth = Math.floor(img.width / config.cols);
                 const frameHeight = Math.floor(img.height / config.rows);
 
-                // Process to remove magenta background
+                // Process to remove magenta/background
                 const processedCanvas = this.removeBackground(img);
 
                 this.sprites[name] = {
                     image: processedCanvas,
                     originalImage: img,
-                    frameWidth: frameWidth,
-                    frameHeight: frameHeight,
+                    width: img.width,
+                    height: img.height,
                     cols: config.cols,
                     rows: config.rows,
+                    frameWidth: frameWidth,
+                    frameHeight: frameHeight,
                     totalFrames: config.cols * config.rows
                 };
                 this.loadCount++;
-                console.log(`  Loaded: ${name} (${frameWidth}x${frameHeight} frames, ${config.cols}x${config.rows} grid)`);
+                console.log(`  Loaded: ${name} (${config.cols}x${config.rows} grid, ${frameWidth}x${frameHeight} frames)`);
                 resolve(true);
             };
             img.onerror = () => {
@@ -78,7 +82,6 @@ class SpriteLoader {
         });
     }
 
-    // Remove magenta background
     removeBackground(img) {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
@@ -94,8 +97,23 @@ class SpriteLoader {
             const g = data[i + 1];
             const b = data[i + 2];
 
-            // Remove magenta (R:255, G:0, B:255) with tolerance
-            if (r > 200 && g < 100 && b > 200) {
+            // Remove magenta background - the sprite sheets use bright magenta (#FF00FF)
+            // Check if pixel is "magenta-ish" (high red, low green, high blue)
+            const isMagenta = (r > 150 && g < 150 && b > 150) &&
+                              (r > g + 50) && (b > g + 50);
+
+            // Pure magenta (255, 0, 255) with tolerance
+            const isPureMagenta = (r > 200 && g < 50 && b > 200);
+
+            // Hot pink / bright magenta variations
+            const isHotPink = (r > 180 && g < 100 && b > 180);
+
+            if (isMagenta || isPureMagenta || isHotPink) {
+                data[i + 3] = 0;  // Make transparent
+            }
+
+            // Remove pure white backgrounds
+            if (r > 250 && g > 250 && b > 250) {
                 data[i + 3] = 0;
             }
         }
@@ -106,19 +124,72 @@ class SpriteLoader {
 
     // Draw a specific frame from the sprite sheet
     drawFrame(ctx, name, frameIndex, x, y, width, height) {
+        // Don't use AI sprites for small gameplay sprites - they look bad scaled down
+        if (width < this.minDisplaySize || height < this.minDisplaySize) {
+            return false;  // Signal to use programmatic sprites instead
+        }
+
         const sprite = this.sprites[name];
         if (!sprite) return false;
 
-        // Calculate source position in sprite sheet
-        const col = frameIndex % sprite.cols;
-        const row = Math.floor(frameIndex / sprite.cols) % sprite.rows;
+        // Calculate which frame to draw from the grid
+        const frame = frameIndex % sprite.totalFrames;
+        const col = frame % sprite.cols;
+        const row = Math.floor(frame / sprite.cols);
+
         const srcX = col * sprite.frameWidth;
         const srcY = row * sprite.frameHeight;
+
+        // Calculate destination size maintaining aspect ratio
+        const srcAspect = sprite.frameWidth / sprite.frameHeight;
+        const dstAspect = width / height;
+
+        let drawWidth = width;
+        let drawHeight = height;
+        let drawX = x;
+        let drawY = y;
+
+        if (srcAspect > dstAspect) {
+            // Source is wider - fit to width, adjust height
+            drawHeight = width / srcAspect;
+            drawY = y + (height - drawHeight);  // Align to bottom
+        } else {
+            // Source is taller - fit to height, adjust width
+            drawWidth = height * srcAspect;
+            drawX = x + (width - drawWidth) / 2;  // Center horizontally
+        }
 
         ctx.drawImage(
             sprite.image,
             srcX, srcY, sprite.frameWidth, sprite.frameHeight,
-            x, y, width, height
+            drawX, drawY, drawWidth, drawHeight
+        );
+        return true;
+    }
+
+    // For large portrait displays (character select, boss intro, etc.)
+    drawPortrait(ctx, name, x, y, maxWidth, maxHeight, frameIndex = 0) {
+        const sprite = this.sprites[name];
+        if (!sprite) return false;
+
+        // Get specific frame
+        const frame = frameIndex % sprite.totalFrames;
+        const col = frame % sprite.cols;
+        const row = Math.floor(frame / sprite.cols);
+
+        const srcX = col * sprite.frameWidth;
+        const srcY = row * sprite.frameHeight;
+
+        const scale = Math.min(maxWidth / sprite.frameWidth, maxHeight / sprite.frameHeight);
+        const drawWidth = sprite.frameWidth * scale;
+        const drawHeight = sprite.frameHeight * scale;
+        const drawX = x + (maxWidth - drawWidth) / 2;
+        const drawY = y + (maxHeight - drawHeight);
+
+        ctx.drawImage(
+            sprite.image,
+            srcX, srcY, sprite.frameWidth, sprite.frameHeight,
+            drawX, drawY, drawWidth, drawHeight
         );
         return true;
     }
@@ -156,28 +227,21 @@ class SpriteLoader {
         return typeMap[bossType.toLowerCase()] || 'frieza_boss';
     }
 
-    // Map pose to frame index
+    // Map pose names to frame indices
     getFrameForPose(pose, animFrame) {
-        // Frame layout assumption:
-        // Row 0: idle variations
-        // Row 1: walk/run cycle
-        // Row 2: actions (jump, attack, hurt)
-        const frameMap = {
+        // Frame 0 is typically idle/standing pose
+        // Other frames can be mapped based on the sprite sheet layout
+        const poseMap = {
             'idle': 0,
-            'run': 8 + (animFrame % 4),      // Row 1, animated
-            'walk': 8 + (animFrame % 4),
-            'jump': 16,                       // Row 2
-            'attack': 17,
-            'punch': 17,
-            'kick': 18,
-            'charge': 19,
-            'special': 20,
-            'hurt': 21,
-            'damaged': 21
+            'run': animFrame % 4,  // Cycle through first 4 frames for run
+            'jump': 4,
+            'attack': 5,
+            'charge': 6,
+            'hurt': 7
         };
-        return frameMap[pose] || 0;
+        return poseMap[pose] || 0;
     }
 }
 
 const spriteLoader = new SpriteLoader();
-console.log('Sprite Loader ready - call spriteLoader.loadAll() to load sprites');
+console.log('Sprite Loader ready - AI sprite sheets for portraits/UI');

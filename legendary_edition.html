@@ -519,20 +519,21 @@ class Sprites {
         ctx.ellipse(x + w/2, y + h + 3, w/2, 8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Try AI-generated sprites (extract single frame from sprite sheet)
+        // Try AI sprites for large displays (character select, portraits)
         if (typeof spriteLoader !== 'undefined' && spriteLoader.loaded) {
             const spriteName = spriteLoader.getCharacterSpriteName(char.name, ssj);
             const sprite = spriteLoader.getSprite(spriteName);
             if (sprite && sprite.image) {
-                // Get frame index based on pose and animation
                 const frameIndex = spriteLoader.getFrameForPose(pose, frame);
-                spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h);
-                ctx.restore();
-                return;
+                // drawFrame returns false if too small - fall through to programmatic
+                if (spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h)) {
+                    ctx.restore();
+                    return;
+                }
             }
         }
 
-        // Fallback to programmatic sprites
+        // Programmatic pixel sprites for gameplay
         const ps = w / 16;
         const sprites = this.getSprite(pose, frame);
         const colors = ssj ? { ...char.colors, hair: '#FFD700' } : char.colors;
@@ -686,19 +687,19 @@ class Sprites {
         ctx.save();
         if (!right) { ctx.translate(x + w, y); ctx.scale(-1, 1); x = 0; y = 0; }
 
-        // Try AI-generated sprites (extract single frame)
+        // Try AI sprites for large displays only
         if (typeof spriteLoader !== 'undefined' && spriteLoader.loaded) {
             const spriteName = spriteLoader.getEnemySpriteName(type);
             const sprite = spriteLoader.getSprite(spriteName);
             if (sprite && sprite.image) {
-                const frameIndex = Math.floor(frame / 10) % sprite.cols;
-                spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h);
-                ctx.restore();
-                return;
+                if (spriteLoader.drawFrame(ctx, spriteName, 0, x, y, w, h)) {
+                    ctx.restore();
+                    return;
+                }
             }
         }
 
-        // Fallback to programmatic sprites
+        // Programmatic pixel sprites for gameplay
         const ps = w / 12;
         const c = { soldier: { body: '#4a4a8a', armor: '#6a6aaa', skin: '#e8c4a0' },
                    saibaman: { body: '#2a6a2a', skin: '#4a9a4a', eyes: '#ff0000' },
@@ -736,19 +737,19 @@ class Sprites {
         ctx.save();
         if (!right) { ctx.translate(x + w, y); ctx.scale(-1, 1); x = 0; y = 0; }
 
-        // Try AI-generated sprites (extract single frame)
+        // Try AI sprites for large displays only
         if (typeof spriteLoader !== 'undefined' && spriteLoader.loaded) {
             const spriteName = spriteLoader.getBossSpriteName(type);
             const sprite = spriteLoader.getSprite(spriteName);
             if (sprite && sprite.image) {
-                const frameIndex = Math.floor(frame / 15) % sprite.cols;
-                spriteLoader.drawFrame(ctx, spriteName, frameIndex, x, y, w, h);
-                ctx.restore();
-                return;
+                if (spriteLoader.drawFrame(ctx, spriteName, 0, x, y, w, h)) {
+                    ctx.restore();
+                    return;
+                }
             }
         }
 
-        // Fallback to programmatic sprites
+        // Programmatic pixel sprites for gameplay
         const ps = w / 20;
         const c = { frieza: { body: '#ffffff', skin: '#e8b8d8', armor: '#8a6aaa', gem: '#ff00ff' },
                    cell: { body: '#2a8a4a', spots: '#1a6a3a', skin: '#8acaa8', armor: '#1a4a2a' },
